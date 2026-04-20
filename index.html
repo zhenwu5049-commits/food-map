@@ -872,8 +872,23 @@ async function fetchFromAmap(keyword) {
   const data = await amapJsonp('/v3/place/around', params);
 
   if (data.status !== '1') throw new Error(`高德API: ${data.info}`);
-  const pois = data.pois || [];
+  let pois = data.pois || [];
   if (!pois.length) throw new Error('附近未找到相关餐厅，请换个关键词试试');
+
+  // 若有菜系关键词，用 CUISINE_MAP 的匹配词过滤高德结果，防止返回无关餐厅
+  if (keyword) {
+    const entry = CUISINE_MAP.find(e => e.kw === keyword);
+    if (entry) {
+      const terms = entry.kws.map(k => k.toLowerCase());
+      const filtered = pois.filter(p => {
+        const name = (p.name || '').toLowerCase();
+        const type = (p.type || '').toLowerCase();
+        return terms.some(t => name.includes(t) || type.includes(t));
+      });
+      if (filtered.length < 2) throw new Error(`附近暂无${keyword}，已为你切换到推荐数据`);
+      pois = filtered;
+    }
+  }
 
   // 有评分的优先展示，然后补无评分的，最多取5家
   const withRating    = pois.filter(p => hasVal(p.biz_ext?.rating));
@@ -957,8 +972,8 @@ function genReason({ cuisine, rating, price, distM }) {
 function fallbackSearch(keyword) {
   const q = (keyword || '').toLowerCase();
   let pool = DB.filter(r => r.kw.some(k => q.includes(k) || k.includes(q)));
-  if (pool.length < 3) pool = shuffle([...DB]).slice(0, 5);
-  else pool = shuffle(pool).slice(0, Math.min(5, pool.length));
+  if (pool.length === 0) pool = DB.filter(r => r.rating >= 4.7);
+  pool = shuffle(pool).slice(0, Math.min(5, pool.length));
 
   return pool.map(r => {
     const distM = Math.floor(Math.random() * 2800 + 120);

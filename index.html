@@ -612,6 +612,58 @@
       font-size: 12px;
       color: #CCC;
     }
+
+    /* ─── 地图区域 ─── */
+    #mapBox {
+      display: none;
+      margin-top: 18px;
+      border-radius: 18px;
+      overflow: hidden;
+      height: 320px;
+      box-shadow: var(--card-shadow);
+    }
+    #mapBox.show { display: block; }
+    #map { width: 100%; height: 100%; }
+
+    /* 地图数字标注 */
+    .map-marker {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--orange), var(--amber));
+      border: 2.5px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(255,107,53,0.45);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    /* 地图信息气泡 */
+    .map-info { padding: 6px 2px; min-width: 120px; }
+    .map-info-name { font-weight: 700; font-size: 14px; color: var(--dark); margin-bottom: 3px; }
+    .map-info-meta { font-size: 12px; color: var(--gray); }
+
+    /* 导航按钮 */
+    .nav-btn {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: linear-gradient(135deg, #34C759, #28A745);
+      border: none;
+      border-radius: 10px;
+      padding: 7px 14px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .nav-btn:hover { opacity: 0.85; }
   </style>
 </head>
 <body>
@@ -710,6 +762,7 @@
       <span id="resultsBadge" class="badge"></span>
     </div>
     <div class="cards" id="cardsWrap"></div>
+    <div id="mapBox"><div id="map"></div></div>
   </div>
 
   <!-- 欢迎引导 -->
@@ -980,8 +1033,8 @@ function mapPOI(p) {
   const distM    = parseInt(p.distance || 0, 10);
   const rating   = hasVal(ext.rating) ? parseFloat(ext.rating) : null;
   const price    = hasVal(ext.cost)   ? parseInt(ext.cost, 10) : null;
-  // 高德 type 格式："餐饮服务;中餐厅;川菜"，取最具体的最后一段
   const cuisine  = (p.type || '').split(';').filter(Boolean).pop() || '餐厅';
+  const [pLng, pLat] = (p.location || '').split(',').map(Number);
 
   const r = {
     name:       p.name,
@@ -993,6 +1046,8 @@ function mapPOI(p) {
     distM,
     tel:        hasVal(p.tel) ? p.tel : '',
     openTime:   hasVal(ext.open_time) ? ext.open_time : '',
+    lat:        isNaN(pLat) ? null : pLat,
+    lng:        isNaN(pLng) ? null : pLng,
     source:     'real',
   };
   r.reason = genReason(r);
@@ -1193,6 +1248,7 @@ function goHome() {
   document.getElementById('aiBox').classList.remove('show');
   document.getElementById('welcome').style.display = '';
   document.getElementById('homeBtn').style.display = 'none';
+  hideMap();
   searching = false;
 }
 
@@ -1254,8 +1310,8 @@ function showCards(list) {
   wrap.innerHTML = '';
   list.forEach((r, i) => wrap.appendChild(makeCard(r, i + 1)));
   document.getElementById('results').classList.add('show');
-  const btn = document.getElementById('homeBtn');
-  btn.style.display = 'flex';
+  document.getElementById('homeBtn').style.display = 'flex';
+  showMap(list);
 }
 
 function makeCard(r, rank) {
@@ -1295,6 +1351,15 @@ function makeCard(r, rank) {
       <div class="card-reason">${r.reason}</div>
       ${addrHtml}
     </div>`;
+
+  if (r.lat && r.lng) {
+    const navBtn = document.createElement('button');
+    navBtn.className = 'nav-btn';
+    navBtn.textContent = '🧭 导航去这里';
+    navBtn.onclick = () => navigateTo(r.name, r.lat, r.lng);
+    div.querySelector('.card-body').appendChild(navBtn);
+  }
+
   return div;
 }
 
@@ -1307,6 +1372,70 @@ function stars(n) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── 地图 & 导航 ──────────────────────────────────────────────────────────────
+let _mapInstance = null;
+
+function loadAmapJs() {
+  return new Promise((resolve, reject) => {
+    if (window.AMap) { resolve(); return; }
+    window._amapInitCallback = resolve;
+    const s = document.createElement('script');
+    s.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}&callback=_amapInitCallback`;
+    s.onerror = () => reject(new Error('地图脚本加载失败'));
+    document.head.appendChild(s);
+  });
+}
+
+async function showMap(list) {
+  const pts = list.filter(r => r.lat && r.lng);
+  if (!pts.length) { hideMap(); return; }
+
+  document.getElementById('mapBox').classList.add('show');
+  try {
+    await loadAmapJs();
+    if (!_mapInstance) {
+      _mapInstance = new AMap.Map('map', { zoom: 14, resizeEnable: true });
+    } else {
+      _mapInstance.clearMap();
+    }
+
+    const markers = pts.map((r, i) => {
+      const marker = new AMap.Marker({
+        position: new AMap.LngLat(r.lng, r.lat),
+        content:  `<div class="map-marker">${i + 1}</div>`,
+        offset:   new AMap.Pixel(-16, -16),
+        zIndex:   100,
+      });
+      const win = new AMap.InfoWindow({
+        content: `<div class="map-info">
+          <div class="map-info-name">${r.name}</div>
+          <div class="map-info-meta">${r.rating ? '⭐ ' + r.rating : ''}${r.price ? ' · 人均¥' + r.price : ''}</div>
+        </div>`,
+        offset: new AMap.Pixel(0, -36),
+        closeWhenClickMap: true,
+      });
+      marker.on('click', () => win.open(_mapInstance, marker.getPosition()));
+      return marker;
+    });
+
+    _mapInstance.add(markers);
+    _mapInstance.setFitView(markers, false, [60, 60, 60, 60]);
+  } catch (e) {
+    console.warn('[地图]', e.message);
+    document.getElementById('mapBox').classList.remove('show');
+  }
+}
+
+function hideMap() {
+  document.getElementById('mapBox').classList.remove('show');
+  if (_mapInstance) _mapInstance.clearMap();
+}
+
+function navigateTo(name, lat, lng) {
+  const url = `https://uri.amap.com/navigation?to=${lng},${lat},${encodeURIComponent(name)}&mode=car&src=food-map&coordinate=gaode&callnative=1`;
+  window.open(url, '_blank');
+}
 </script>
 <!-- 手动定位弹窗 -->
 <div id="locModal" class="hidden">

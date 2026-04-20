@@ -1372,9 +1372,19 @@ function showMap(list) {
   const span = Math.max(Math.max(...lats) - Math.min(...lats), Math.max(...lngs) - Math.min(...lngs));
   const zoom = span < 0.008 ? 16 : span < 0.02 ? 15 : span < 0.05 ? 14 : 13;
 
-  // 构建标注参数（高德静态地图 markers 格式）
-  const markersStr = pts.map((r, i) => `mid,0xFF6B35,${i + 1}:${r.lng},${r.lat}`).join('|');
-  const imgUrl = `https://restapi.amap.com/v3/staticmap?key=${AMAP_KEY}&location=${centerLng},${centerLat}&zoom=${zoom}&size=750*360&scale=2&markers=${markersStr}`;
+  // 构建标注参数：large 尺寸，橙色，数字标签；用 %7C 安全分隔多个标注
+  const markersParam = pts
+    .map((r, i) => `large,0xFF6B35,${i + 1}:${r.lng.toFixed(6)},${r.lat.toFixed(6)}`)
+    .join('%7C');
+  const imgUrl = [
+    'https://restapi.amap.com/v3/staticmap',
+    `?key=${AMAP_KEY}`,
+    `&location=${centerLng.toFixed(6)},${centerLat.toFixed(6)}`,
+    `&zoom=${zoom}`,
+    `&size=750*360`,
+    `&scale=2`,
+    `&markers=${markersParam}`,
+  ].join('');
 
   // 点击跳转高德网页版（以第一个餐厅为中心）
   const mapLink = `https://www.amap.com/search?query=${encodeURIComponent(pts.map(r=>r.name).join('|'))}&city=`;

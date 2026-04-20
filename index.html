@@ -59,7 +59,7 @@
       transition: all 0.3s;
       cursor: pointer;
     }
-    #locBadge:hover { background: rgba(255,255,255,0.28); }
+    #locBadge:hover { background: rgba(255,255,255,0.35); border-color: rgba(255,255,255,0.7); }
 
     /* ─── 手动定位弹窗 ─── */
     #locModal {
@@ -685,6 +685,7 @@
   <div id="locBadge" onclick="showLocModal(true)" title="点击修改位置">
     <div class="dot"></div>
     <span id="locText">定位中…</span>
+    <span style="opacity:0.65;font-size:11px;margin-left:1px">✎</span>
   </div>
 </header>
 
@@ -816,7 +817,7 @@ const AMAP_KEY = 'acf95a01a5078419c1fb45c4ebe247e8'; // Web服务API
 
 // ─── 状态 ─────────────────────────────────────────────────────────────────────
 let userLat = null, userLng = null, locLabel = '定位中', locType = 'none';
-let searching = false;
+let searching = false, lastQuery = '';
 
 // ─── 模拟数据库（高德 API 不可用时降级使用）──────────────────────────────────
 const DB = [
@@ -1200,6 +1201,10 @@ async function confirmManualLoc() {
     locLabel = input;
     hideLocModal();
     setLocBadge(`手动定位：${input}`, true);
+    if (lastQuery) {
+      document.getElementById('queryInput').value = lastQuery;
+      doSearch();
+    }
   } catch {
     errEl.textContent = '网络错误，请重试';
     errEl.classList.add('show');
@@ -1234,6 +1239,7 @@ async function doSearch() {
   if (searching) return;
   const q = document.getElementById('queryInput').value.trim();
   if (!q) return;
+  lastQuery = q;
 
   searching = true;
   showThinking();

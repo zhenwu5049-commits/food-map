@@ -834,7 +834,8 @@ function togglePwdEye() {
 
 
 // 建议在高德控制台 → 应用管理 → 白名单 中绑定域名，防止盗用
-const AMAP_KEY = 'acf95a01a5078419c1fb45c4ebe247e8';
+const AMAP_KEY    = 'acf95a01a5078419c1fb45c4ebe247e8'; // Web服务API：POI搜索
+const AMAP_JS_KEY = 'eea025a5f6a971a655586a82a5eef372'; // JS API：地图渲染
 
 // ─── 状态 ─────────────────────────────────────────────────────────────────────
 let userLat = null, userLng = null, locLabel = '定位中', locType = 'none';
@@ -1381,7 +1382,7 @@ function loadAmapJs() {
     if (window.AMap) { resolve(); return; }
     window._amapInitCallback = resolve;
     const s = document.createElement('script');
-    s.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}&callback=_amapInitCallback`;
+    s.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_JS_KEY}&callback=_amapInitCallback`;
     s.onerror = () => reject(new Error('地图脚本加载失败'));
     document.head.appendChild(s);
   });

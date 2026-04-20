@@ -622,29 +622,7 @@
       height: 320px;
       box-shadow: var(--card-shadow);
     }
-    #mapBox.show { display: block; }
-    #map { width: 100%; height: 100%; }
-
-    /* 地图数字标注 */
-    .map-marker {
-      width: 32px; height: 32px;
-      background: linear-gradient(135deg, var(--orange), var(--amber));
-      border: 2.5px solid #fff;
-      border-radius: 50%;
-      box-shadow: 0 2px 8px rgba(255,107,53,0.45);
-      color: #fff;
-      font-size: 14px;
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    /* 地图信息气泡 */
-    .map-info { padding: 6px 2px; min-width: 120px; }
-    .map-info-name { font-weight: 700; font-size: 14px; color: var(--dark); margin-bottom: 3px; }
-    .map-info-meta { font-size: 12px; color: var(--gray); }
+    #mapBox.show { display: block; cursor: pointer; }
 
     /* 导航按钮 */
     .nav-btn {
@@ -762,7 +740,7 @@
       <span id="resultsBadge" class="badge"></span>
     </div>
     <div class="cards" id="cardsWrap"></div>
-    <div id="mapBox"><div id="map"></div></div>
+    <div id="mapBox"></div>
   </div>
 
   <!-- 欢迎引导 -->
@@ -834,8 +812,7 @@ function togglePwdEye() {
 
 
 // 建议在高德控制台 → 应用管理 → 白名单 中绑定域名，防止盗用
-const AMAP_KEY    = 'acf95a01a5078419c1fb45c4ebe247e8'; // Web服务API：POI搜索
-const AMAP_JS_KEY = 'eea025a5f6a971a655586a82a5eef372'; // JS API：地图渲染
+const AMAP_KEY = 'acf95a01a5078419c1fb45c4ebe247e8'; // Web服务API
 
 // ─── 状态 ─────────────────────────────────────────────────────────────────────
 let userLat = null, userLng = null, locLabel = '定位中', locType = 'none';
@@ -1375,62 +1352,39 @@ function stars(n) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ─── 地图 & 导航 ──────────────────────────────────────────────────────────────
-let _mapInstance = null;
-
-function loadAmapJs() {
-  return new Promise((resolve, reject) => {
-    if (window.AMap) { resolve(); return; }
-    window._amapInitCallback = resolve;
-    const s = document.createElement('script');
-    s.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_JS_KEY}&callback=_amapInitCallback`;
-    s.onerror = () => reject(new Error('地图脚本加载失败'));
-    document.head.appendChild(s);
-  });
-}
-
-async function showMap(list) {
+function showMap(list) {
   const pts = list.filter(r => r.lat && r.lng);
+  const box = document.getElementById('mapBox');
   if (!pts.length) { hideMap(); return; }
 
-  document.getElementById('mapBox').classList.add('show');
-  try {
-    await loadAmapJs();
-    if (!_mapInstance) {
-      _mapInstance = new AMap.Map('map', { zoom: 14, resizeEnable: true });
-    } else {
-      _mapInstance.clearMap();
-    }
+  // 计算中心点
+  const lats = pts.map(r => r.lat), lngs = pts.map(r => r.lng);
+  const centerLat = (Math.max(...lats) + Math.min(...lats)) / 2;
+  const centerLng = (Math.max(...lngs) + Math.min(...lngs)) / 2;
 
-    const markers = pts.map((r, i) => {
-      const marker = new AMap.Marker({
-        position: new AMap.LngLat(r.lng, r.lat),
-        content:  `<div class="map-marker">${i + 1}</div>`,
-        offset:   new AMap.Pixel(-16, -16),
-        zIndex:   100,
-      });
-      const win = new AMap.InfoWindow({
-        content: `<div class="map-info">
-          <div class="map-info-name">${r.name}</div>
-          <div class="map-info-meta">${r.rating ? '⭐ ' + r.rating : ''}${r.price ? ' · 人均¥' + r.price : ''}</div>
-        </div>`,
-        offset: new AMap.Pixel(0, -36),
-        closeWhenClickMap: true,
-      });
-      marker.on('click', () => win.open(_mapInstance, marker.getPosition()));
-      return marker;
-    });
+  // 根据坐标跨度选合适缩放级别
+  const span = Math.max(Math.max(...lats) - Math.min(...lats), Math.max(...lngs) - Math.min(...lngs));
+  const zoom = span < 0.008 ? 16 : span < 0.02 ? 15 : span < 0.05 ? 14 : 13;
 
-    _mapInstance.add(markers);
-    _mapInstance.setFitView(markers, false, [60, 60, 60, 60]);
-  } catch (e) {
-    console.warn('[地图]', e.message);
-    document.getElementById('mapBox').classList.remove('show');
-  }
+  // 构建标注参数（高德静态地图 markers 格式）
+  const markersStr = pts.map((r, i) => `mid,0xFF6B35,${i + 1}:${r.lng},${r.lat}`).join('|');
+  const imgUrl = `https://restapi.amap.com/v3/staticmap?key=${AMAP_KEY}&location=${centerLng},${centerLat}&zoom=${zoom}&size=750*360&scale=2&markers=${markersStr}`;
+
+  // 点击跳转高德网页版（以第一个餐厅为中心）
+  const mapLink = `https://www.amap.com/search?query=${encodeURIComponent(pts.map(r=>r.name).join('|'))}&city=`;
+
+  box.innerHTML = `<a href="${mapLink}" target="_blank" rel="noopener" title="点击查看完整地图">
+    <img src="${imgUrl}" alt="餐厅位置地图"
+      style="width:100%;height:100%;object-fit:cover;display:block;"
+      onerror="this.parentElement.parentElement.classList.remove('show')" />
+  </a>`;
+  box.classList.add('show');
 }
 
 function hideMap() {
-  document.getElementById('mapBox').classList.remove('show');
-  if (_mapInstance) _mapInstance.clearMap();
+  const box = document.getElementById('mapBox');
+  box.classList.remove('show');
+  box.innerHTML = '';
 }
 
 function navigateTo(name, lat, lng) {

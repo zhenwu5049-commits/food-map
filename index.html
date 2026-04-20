@@ -57,7 +57,76 @@
       white-space: nowrap;
       backdrop-filter: blur(4px);
       transition: all 0.3s;
+      cursor: pointer;
     }
+    #locBadge:hover { background: rgba(255,255,255,0.28); }
+
+    /* ─── 手动定位弹窗 ─── */
+    #locModal {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(44,26,0,0.48);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    #locModal.hidden { display: none; }
+    .loc-card {
+      background: #fff;
+      border-radius: 22px;
+      padding: 32px 28px 24px;
+      width: min(340px, 90vw);
+      box-shadow: 0 8px 40px rgba(255,107,53,0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .loc-card h3 { font-size: 18px; font-weight: 800; color: var(--dark); }
+    .loc-card p  { font-size: 13px; color: var(--gray); line-height: 1.6; margin-top: -4px; }
+    .loc-input {
+      width: 100%;
+      border: 1.5px solid #FFD9C3;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--dark);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .loc-input:focus { border-color: var(--orange); }
+    .loc-input::placeholder { color: #BFBFBF; font-size: 13px; }
+    .loc-err { font-size: 13px; color: #e53; display: none; margin-top: -6px; }
+    .loc-err.show { display: block; }
+    .loc-btns { display: flex; gap: 10px; }
+    .loc-btn-main {
+      flex: 1;
+      background: linear-gradient(135deg, var(--orange), var(--amber));
+      border: none;
+      border-radius: 12px;
+      padding: 12px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .loc-btn-main:hover { opacity: 0.88; }
+    .loc-btn-cancel {
+      padding: 12px 16px;
+      background: none;
+      border: 1.5px solid #E0D0C0;
+      border-radius: 12px;
+      font-size: 14px;
+      color: var(--gray);
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .loc-btn-cancel:hover { border-color: var(--orange); color: var(--orange); }
 
     #locBadge .dot {
       width: 7px; height: 7px;
@@ -583,7 +652,7 @@
     <sub>AI 驱动的私人美食推荐官</sub>
   </div>
   <button id="homeBtn" onclick="goHome()">🏠 回到主页</button>
-  <div id="locBadge">
+  <div id="locBadge" onclick="showLocModal(true)" title="点击修改位置">
     <div class="dot"></div>
     <span id="locText">定位中…</span>
   </div>
@@ -715,7 +784,7 @@ function togglePwdEye() {
 const AMAP_KEY = 'acf95a01a5078419c1fb45c4ebe247e8';
 
 // ─── 状态 ─────────────────────────────────────────────────────────────────────
-let userLat = null, userLng = null, locLabel = '定位中';
+let userLat = null, userLng = null, locLabel = '定位中', locType = 'none';
 let searching = false;
 
 // ─── 模拟数据库（高德 API 不可用时降级使用）──────────────────────────────────
@@ -1019,7 +1088,7 @@ function shuffle(arr) {
 // ─── AI 摘要文案 ──────────────────────────────────────────────────────────────
 function genSummary(q, list, keyword, isReal) {
   const n   = list.length;
-  const loc = (locLabel && locLabel !== '定位中') ? locLabel : '你的位置';
+  const loc = (locLabel && locLabel !== '定位中' && locLabel !== '当前位置') ? locLabel : '你的位置';
   const src = isReal
     ? '高德地图实时数据（含大众点评评分）'
     : '内置推荐数据（高德API暂不可用）';
@@ -1035,25 +1104,73 @@ function genSummary(q, list, keyword, isReal) {
 function askLocation() {
   document.getElementById('locBanner').classList.add('hidden');
   setLocBadge('定位中…', false);
-  if (!navigator.geolocation) { setDefaultLoc(); return; }
+  if (!navigator.geolocation) { showLocModal(false); return; }
   navigator.geolocation.getCurrentPosition(
     pos => {
       userLat  = pos.coords.latitude;
       userLng  = pos.coords.longitude;
-      // 注：浏览器返回 WGS-84，高德使用 GCJ-02，误差约100-300米，周边搜索影响可忽略
-      locLabel = `${userLat.toFixed(2)}°N ${userLng.toFixed(2)}°E`;
+      locType  = 'gps';
+      locLabel = '当前位置';
       setLocBadge('已定位', true);
+      reverseGeocode(userLat, userLng);
     },
-    () => setDefaultLoc(),
+    () => showLocModal(false),
     { timeout: 8000 }
   );
 }
 
-function setDefaultLoc() {
-  userLat  = 31.2304;   // 上海陆家嘴
-  userLng  = 121.4737;
-  locLabel = '上海（模拟位置）';
-  setLocBadge('模拟定位', true);
+async function reverseGeocode(lat, lng) {
+  try {
+    const data = await amapJsonp('/v3/geocode/regeo', { location: `${lng},${lat}`, extensions: 'base' });
+    if (data.status === '1') {
+      const addr = data.regeocode?.addressComponent;
+      const city = addr?.city || addr?.province || '';
+      const dist = addr?.district || '';
+      if (city) {
+        locLabel = `${city}${dist}`;
+        setLocBadge(`已定位：${city}`, true);
+      }
+    }
+  } catch { /* 逆地理编码失败不影响主流程 */ }
+}
+
+function showLocModal(canCancel) {
+  document.getElementById('locErr').classList.remove('show');
+  document.getElementById('locInput').value = '';
+  const cancelBtn = document.getElementById('locCancelBtn');
+  if (canCancel && userLat) cancelBtn.classList.remove('hidden');
+  else cancelBtn.classList.add('hidden');
+  document.getElementById('locModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('locInput').focus(), 100);
+}
+
+function hideLocModal() {
+  document.getElementById('locModal').classList.add('hidden');
+}
+
+async function confirmManualLoc() {
+  const input = document.getElementById('locInput').value.trim();
+  if (!input) return;
+  const errEl = document.getElementById('locErr');
+  errEl.classList.remove('show');
+
+  try {
+    const data = await amapJsonp('/v3/geocode/geo', { address: input });
+    if (data.status !== '1' || !data.geocodes?.length) {
+      errEl.classList.add('show');
+      return;
+    }
+    const [lng, lat] = data.geocodes[0].location.split(',').map(Number);
+    userLng  = lng;
+    userLat  = lat;
+    locType  = 'manual';
+    locLabel = input;
+    hideLocModal();
+    setLocBadge(`手动定位：${input}`, true);
+  } catch {
+    errEl.textContent = '网络错误，请重试';
+    errEl.classList.add('show');
+  }
 }
 
 function setLocBadge(text, ok) {
@@ -1191,5 +1308,22 @@ function stars(n) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>
+<!-- 手动定位弹窗 -->
+<div id="locModal" class="hidden">
+  <div class="loc-card">
+    <h3>📍 设置你的位置</h3>
+    <p>输入你所在的城市或地区，AI 将根据此位置为你推荐附近美食。</p>
+    <input id="locInput" class="loc-input" type="text"
+      placeholder="例如：杭州、深圳南山区、北京朝阳区"
+      maxlength="30"
+      onkeydown="if(event.key==='Enter')confirmManualLoc()" />
+    <span id="locErr" class="loc-err">找不到该地址，请换一个描述试试</span>
+    <div class="loc-btns">
+      <button class="loc-btn-main" onclick="confirmManualLoc()">确认位置</button>
+      <button id="locCancelBtn" class="loc-btn-cancel hidden" onclick="hideLocModal()">取消</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

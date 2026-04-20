@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>美食活点地图</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --orange:       #FF6B35;
+      --orange-light: #FF8C5A;
+      --amber:        #FFA726;
+      --cream:        #FFF8F0;
+      --cream-dark:   #FDEBD0;
+      --dark:         #2C1A00;
+      --gray:         #6B6B6B;
+      --card-shadow:  0 4px 24px rgba(255,107,53,0.10);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+      background: var(--cream);
+      min-height: 100vh;
+      color: var(--dark);
+    }
+
+    /* ─── Header ─── */
+    header {
+      background: linear-gradient(120deg, #FF5722 0%, var(--orange) 45%, var(--amber) 100%);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 3px 16px rgba(255,87,34,0.35);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-logo { font-size: 30px; line-height: 1; }
+
+    .header-titles h1   { color: #fff; font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+    .header-titles sub  { color: rgba(255,255,255,0.82); font-size: 12px; }
+
+    #locBadge {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 5px 12px;
+      color: #fff;
+      font-size: 12px;
+      white-space: nowrap;
+      backdrop-filter: blur(4px);
+      transition: all 0.3s;
+    }
+
+    #locBadge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #FFE066;
+      animation: pulse 1.6s infinite;
+    }
+    #locBadge.ok .dot { background: #66FF99; animation: none; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ─── Main ─── */
+    main {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    /* ─── Loc banner ─── */
+    #locBanner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: linear-gradient(120deg,#7B61FF,#5E35B1);
+      color: #fff;
+      border-radius: 16px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(123,97,255,0.3);
+      transition: all 0.4s;
+    }
+    #locBanner.hidden { display: none; }
+    #locBanner .lb-text { flex: 1; font-size: 13px; line-height: 1.5; }
+    #locBanner button {
+      background: #fff;
+      color: #5E35B1;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #locBanner button:hover { background: #EDE7F6; }
+
+    /* ─── Search card ─── */
+    .search-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 20px 20px 16px;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 24px;
+      border: 1px solid rgba(255,167,38,0.15);
+    }
+
+    .search-label {
+      font-size: 13px;
+      color: var(--gray);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .search-row { display: flex; gap: 10px; }
+
+    #queryInput {
+      flex: 1;
+      border: 2px solid #FFD9C3;
+      border-radius: 13px;
+      padding: 11px 16px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      background: var(--cream);
+      color: var(--dark);
+    }
+    #queryInput:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 3px rgba(255,107,53,0.12);
+      background: #fff;
+    }
+    #queryInput::placeholder { color: #BFBFBF; }
+
+    #sendBtn {
+      background: linear-gradient(135deg, var(--orange), var(--amber));
+      border: none;
+      border-radius: 13px;
+      padding: 11px 18px;
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(255,107,53,0.38);
+      transition: transform 0.12s, box-shadow 0.2s;
+      flex-shrink: 0;
+    }
+    #sendBtn:hover  { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,107,53,0.48); }
+    #sendBtn:active { transform: translateY(0); }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .chip {
+      background: var(--cream);
+      border: 1.5px solid #FFD9C3;
+      border-radius: 20px;
+      padding: 5px 13px;
+      font-size: 13px;
+      color: var(--orange);
+      cursor: pointer;
+      transition: all 0.18s;
+      user-select: none;
+    }
+    .chip:hover { background: var(--orange); color: #fff; border-color: var(--orange); transform: scale(1.04); }
+
+    /* ─── AI response bubble ─── */
+    #aiBox {
+      background: #fff;
+      border-radius: 20px;
+      padding: 18px 20px;
+      margin-bottom: 24px;
+      box-shadow: var(--card-shadow);
+      border: 1px solid rgba(255,167,38,0.12);
+      display: none;
+    }
+    #aiBox.show { display: block; }
+
+    .ai-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .ai-avatar {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg,#FF6B35,#FFA726);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+      box-shadow: 0 3px 10px rgba(255,107,53,0.3);
+    }
+
+    .ai-name  { font-size: 14px; font-weight: 700; color: var(--orange); }
+    .ai-role  { font-size: 11px; color: var(--gray); margin-top: 1px; }
+
+    #thinkDots { display: flex; gap: 6px; align-items: center; padding: 4px 0; }
+    .tdot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: var(--orange);
+      animation: tdBounce 1.1s infinite ease-in-out;
+    }
+    .tdot:nth-child(2) { animation-delay:.18s; background:var(--amber); }
+    .tdot:nth-child(3) { animation-delay:.36s; }
+    @keyframes tdBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-9px)} }
+
+    #aiText {
+      font-size: 14px;
+      line-height: 1.8;
+      color: #444;
+      display: none;
+    }
+
+    /* ─── Results ─── */
+    #results { display: none; }
+    #results.show { display: block; }
+
+    .results-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--dark);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .results-title .badge {
+      background: var(--orange);
+      color: #fff;
+      font-size: 12px;
+      border-radius: 10px;
+      padding: 2px 9px;
+      font-weight: 600;
+    }
+
+    #homeBtn {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,0.8);
+      border-radius: 20px;
+      padding: 5px 13px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.18s;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    #homeBtn:hover { background: #fff; color: var(--orange); border-color: #fff; }
+
+    .cards { display: flex; flex-direction: column; gap: 14px; }
+
+    /* ─── Restaurant card ─── */
+    .rcard {
+      background: #fff;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      gap: 14px;
+      border: 1px solid rgba(255,167,38,0.1);
+      border-left: 5px solid var(--orange);
+      opacity: 0;
+      transform: translateY(18px);
+      animation: cardIn 0.45s forwards ease-out;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .rcard:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(255,107,53,0.18); }
+
+    @keyframes cardIn { to { opacity:1; transform:translateY(0); } }
+
+    .rcard:nth-child(1) { animation-delay: 0.00s; border-left-color: #FF5722; }
+    .rcard:nth-child(2) { animation-delay: 0.09s; border-left-color: var(--orange); }
+    .rcard:nth-child(3) { animation-delay: 0.18s; border-left-color: var(--amber); }
+    .rcard:nth-child(4) { animation-delay: 0.27s; border-left-color: #FFC107; }
+    .rcard:nth-child(5) { animation-delay: 0.36s; border-left-color: #FFCA28; }
+
+    .rank-num {
+      width: 38px; height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg,var(--orange),var(--amber));
+      color: #fff;
+      font-size: 18px;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 3px 10px rgba(255,107,53,0.3);
+    }
+    .rcard:nth-child(1) .rank-num { background: linear-gradient(135deg,#FF5722,#FF8A65); }
+    .rcard:nth-child(2) .rank-num { background: linear-gradient(135deg,#FF6B35,#FFA726); }
+    .rcard:nth-child(3) .rank-num { background: linear-gradient(135deg,#FFA726,#FFD54F); color: var(--dark); }
+    .rcard:nth-child(4) .rank-num { background: linear-gradient(135deg,#FFC107,#FFE082); color: var(--dark); }
+    .rcard:nth-child(5) .rank-num { background: linear-gradient(135deg,#FFCA28,#FFF9C4); color: var(--dark); }
+
+    .card-body { flex: 1; min-width: 0; }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .card-name {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--dark);
+      flex: 1;
+      min-width: 0;
+    }
+
+    .card-rating {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+    .card-stars { color: #FFA726; font-size: 13px; letter-spacing: -1px; }
+    .card-score { font-size: 14px; font-weight: 700; color: var(--dark); }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .tag {
+      border-radius: 7px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tag.cuisine  { background: #FFF3E0; color: var(--orange); }
+    .tag.price    { background: #E8F5E9; color: #2E7D32; }
+    .tag.distance { background: #F3E5F5; color: #7B1FA2; }
+
+    .card-reason {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.7;
+      background: var(--cream);
+      border-radius: 10px;
+      padding: 10px 13px;
+      border-left: 3px solid #FFD9C3;
+    }
+
+    .card-dishes {
+      margin-top: 9px;
+      font-size: 12px;
+      color: #999;
+    }
+    .card-dishes b { color: var(--orange); }
+
+    /* ─── Welcome ─── */
+    #welcome {
+      text-align: center;
+      padding: 50px 20px;
+      color: var(--gray);
+    }
+    #welcome .w-emoji { font-size: 64px; display: block; margin-bottom: 16px; }
+    #welcome h2 { font-size: 22px; font-weight: 800; color: var(--dark); margin-bottom: 8px; }
+    #welcome p  { font-size: 14px; line-height: 1.8; }
+
+    /* ─── Footer ─── */
+    footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #CCC;
+    }
+
+    .card-info {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #999;
+      line-height: 1.6;
+    }
+
+    /* 来源标记 */
+    .src-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 5px;
+      padding: 1px 6px;
+      vertical-align: middle;
+      margin-left: 4px;
+    }
+    .src-tag.real { background: #E8F5E9; color: #2E7D32; }
+    .src-tag.mock { background: #FFF3E0; color: #E65100; }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 500px) {
+      .card-name { font-size: 15px; }
+      .rcard { padding: 14px; gap: 10px; }
+      .rank-num { width: 32px; height: 32px; font-size: 15px; }
+    }
+
+    /* ─── 密码验证界面 ─── */
+    #pwdOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: linear-gradient(135deg, #FF5722 0%, #FF6B35 45%, #FFA726 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+      transition: opacity 0.45s ease, visibility 0.45s;
+    }
+    #pwdOverlay.fade-out {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .pwd-deco {
+      position: fixed;
+      font-size: 36px;
+      opacity: 0.18;
+      pointer-events: none;
+      animation: pwdFloat 5s ease-in-out infinite;
+    }
+    @keyframes pwdFloat {
+      0%,100% { transform: translateY(0) rotate(0deg); }
+      50%      { transform: translateY(-22px) rotate(12deg); }
+    }
+
+    .pwd-card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 40px 36px 32px;
+      width: 90%;
+      max-width: 380px;
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+      position: relative;
+      z-index: 1;
+    }
+
+    .pwd-emoji  { font-size: 54px; display: block; margin-bottom: 12px; }
+    .pwd-title  { font-size: 22px; font-weight: 800; color: var(--dark); margin-bottom: 4px; }
+    .pwd-sub    { font-size: 14px; color: var(--gray); margin-bottom: 28px; line-height: 1.6; }
+
+    .pwd-field {
+      position: relative;
+      margin-bottom: 14px;
+    }
+    #pwdInput {
+      width: 100%;
+      border: 2px solid #FFD9C3;
+      border-radius: 13px;
+      padding: 13px 46px 13px 18px;
+      font-size: 17px;
+      font-family: inherit;
+      outline: none;
+      letter-spacing: 3px;
+      text-align: center;
+      background: var(--cream);
+      color: var(--dark);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #pwdInput:focus  { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(255,107,53,0.12); background: #fff; }
+    #pwdInput.shake  { border-color: #e53935; animation: pwdShake 0.4s ease; }
+    #pwdInput::placeholder { color: #BFBFBF; letter-spacing: 0; font-size: 14px; }
+
+    @keyframes pwdShake {
+      0%,100% { transform: translateX(0); }
+      20%     { transform: translateX(-9px); }
+      40%     { transform: translateX(9px); }
+      60%     { transform: translateX(-6px); }
+      80%     { transform: translateX(6px); }
+    }
+
+    .pwd-eye {
+      position: absolute;
+      right: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 18px;
+      cursor: pointer;
+      user-select: none;
+      opacity: 0.5;
+      transition: opacity 0.2s;
+    }
+    .pwd-eye:hover { opacity: 1; }
+
+    .pwd-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--orange), var(--amber));
+      border: none;
+      border-radius: 13px;
+      padding: 13px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(255,107,53,0.38);
+      transition: transform 0.12s, box-shadow 0.2s;
+    }
+    .pwd-btn:hover  { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,107,53,0.48); }
+    .pwd-btn:active { transform: translateY(0); }
+
+    #pwdErr {
+      margin-top: 14px;
+      font-size: 13px;
+      color: #e53935;
+      min-height: 18px;
+      line-height: 1.5;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #pwdErr.show { opacity: 1; }
+
+    .pwd-hint {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #CCC;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── 密码验证界面（z-index 最高，验证通过后淡出） ─── -->
+<div id="pwdOverlay">
+  <!-- 背景浮动装饰 -->
+  <span class="pwd-deco" style="top:8%;left:7%;animation-delay:0s">🍜</span>
+  <span class="pwd-deco" style="top:12%;right:9%;animation-delay:0.7s">🌮</span>
+  <span class="pwd-deco" style="bottom:18%;left:10%;animation-delay:1.4s">🍣</span>
+  <span class="pwd-deco" style="bottom:12%;right:7%;animation-delay:2.1s">🔥</span>
+  <span class="pwd-deco" style="top:48%;left:3%;animation-delay:2.8s">🍕</span>
+  <span class="pwd-deco" style="top:38%;right:3%;animation-delay:3.5s">🥩</span>
+
+  <div class="pwd-card">
+    <span class="pwd-emoji">🗺️</span>
+    <div class="pwd-title">美食活点地图</div>
+    <div class="pwd-sub">输入访问密码，开启你的美食探索之旅</div>
+
+    <div class="pwd-field">
+      <input id="pwdInput" type="password"
+        placeholder="请输入密码"
+        onkeydown="if(event.key==='Enter')checkPwd()"
+        autocomplete="off" />
+      <span class="pwd-eye" id="pwdEye" onclick="togglePwdEye()">👁️</span>
+    </div>
+
+    <button class="pwd-btn" onclick="checkPwd()">进入美食地图 →</button>
+    <div id="pwdErr"></div>
+    <div class="pwd-hint">如未获得密码，请联系管理员</div>
+  </div>
+</div>
+
+<header>
+  <div class="header-logo">🗺️</div>
+  <div class="header-titles">
+    <h1>美食活点地图</h1>
+    <sub>AI 驱动的私人美食推荐官</sub>
+  </div>
+  <button id="homeBtn" onclick="goHome()">🏠 回到主页</button>
+  <div id="locBadge">
+    <div class="dot"></div>
+    <span id="locText">定位中…</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- 定位横幅 -->
+  <div id="locBanner">
+    <span style="font-size:22px;flex-shrink:0">📍</span>
+    <div class="lb-text">开启位置权限，让 AI 根据你的真实位置推荐最近的美食！</div>
+    <button onclick="askLocation()">开启定位</button>
+  </div>
+
+  <!-- 搜索框 -->
+  <div class="search-card">
+    <div class="search-label">🤖 &nbsp;告诉我你想吃什么……</div>
+    <div class="search-row">
+      <input id="queryInput" type="text"
+        placeholder="例如：我想吃川菜、附近有什么好吃的日料？"
+        onkeydown="onKey(event)" />
+      <button id="sendBtn" onclick="doSearch()">🍽️</button>
+    </div>
+    <div class="chips">
+      <span class="chip" onclick="quick('我想吃川菜')">🌶️ 我想吃川菜</span>
+      <span class="chip" onclick="quick('来点日料')">🍣 来点日料</span>
+      <span class="chip" onclick="quick('附近的墨西哥菜')">🌮 墨西哥菜</span>
+      <span class="chip" onclick="quick('火锅走起')">🔥 火锅走起</span>
+      <span class="chip" onclick="quick('实惠的午餐')">💰 实惠午餐</span>
+      <span class="chip" onclick="quick('随便，推荐个好吃的')">🎲 随便推荐</span>
+    </div>
+  </div>
+
+  <!-- AI 回复气泡 -->
+  <div id="aiBox">
+    <div class="ai-head">
+      <div class="ai-avatar">🤖</div>
+      <div>
+        <div class="ai-name">小食 · AI 美食顾问</div>
+        <div class="ai-role">你的私人美食推荐官，已为你服务</div>
+      </div>
+    </div>
+    <div id="thinkDots">
+      <div class="tdot"></div>
+      <div class="tdot"></div>
+      <div class="tdot"></div>
+    </div>
+    <div id="aiText"></div>
+  </div>
+
+  <!-- 推荐结果 -->
+  <div id="results">
+    <div class="results-title">
+      🍽️ 为你精选
+      <span id="resultsBadge" class="badge"></span>
+    </div>
+    <div class="cards" id="cardsWrap"></div>
+  </div>
+
+  <!-- 欢迎引导 -->
+  <div id="welcome">
+    <span class="w-emoji">🍜</span>
+    <h2>发现附近的美食</h2>
+    <p>告诉我你的口味偏好，<br>我会结合你的位置，推荐最值得去的餐厅。</p>
+  </div>
+
+</main>
+
+<footer>美食活点地图 · 让每一顿饭都值得期待 ✨</footer>
+
+<script>
+'use strict';
+
+// ─── 密码验证 ─────────────────────────────────────────────────────────────────
+const _AUTH_KEY = 'fmap_auth_ts';
+const _AUTH_TTL = 24 * 60 * 60 * 1000;          // 24 小时
+const _PWD_HASH = btoa('Xdy710');                // 简单编码，防止源码直接看到明文
+
+function initAuth() {
+  try {
+    const ts = parseInt(localStorage.getItem(_AUTH_KEY) || '0', 10);
+    if (ts && Date.now() - ts < _AUTH_TTL) { _unlockPage(true); return; }
+  } catch (_) {}
+  // 需要验证：overlay 已默认显示，聚焦输入框
+  setTimeout(() => document.getElementById('pwdInput').focus(), 80);
+}
+
+function checkPwd() {
+  const val = document.getElementById('pwdInput').value;
+  if (btoa(val) === _PWD_HASH) {
+    try { localStorage.setItem(_AUTH_KEY, String(Date.now())); } catch (_) {}
+    _unlockPage(false);
+  } else {
+    _showPwdErr('密码不对哦，请联系管理员获取 🔒');
+    const inp = document.getElementById('pwdInput');
+    inp.classList.remove('shake');
+    // 强制重新触发动画
+    void inp.offsetWidth;
+    inp.classList.add('shake');
+    inp.value = '';
+    setTimeout(() => inp.classList.remove('shake'), 450);
+  }
+}
+
+function _unlockPage(instant) {
+  const ov = document.getElementById('pwdOverlay');
+  if (instant) { ov.style.display = 'none'; return; }
+  ov.classList.add('fade-out');
+  setTimeout(() => ov.style.display = 'none', 480);
+}
+
+function _showPwdErr(msg) {
+  const el = document.getElementById('pwdErr');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+function togglePwdEye() {
+  const inp = document.getElementById('pwdInput');
+  const eye = document.getElementById('pwdEye');
+  if (inp.type === 'password') { inp.type = 'text';     eye.textContent = '🙈'; }
+  else                         { inp.type = 'password'; eye.textContent = '👁️'; }
+}
+
+
+// 建议在高德控制台 → 应用管理 → 白名单 中绑定域名，防止盗用
+const AMAP_KEY = 'acf95a01a5078419c1fb45c4ebe247e8';
+
+// ─── 状态 ─────────────────────────────────────────────────────────────────────
+let userLat = null, userLng = null, locLabel = '定位中';
+let searching = false;
+
+// ─── 模拟数据库（高德 API 不可用时降级使用）──────────────────────────────────
+const DB = [
+  // 川菜
+  { name:'天府记忆', cuisine:'川菜', kw:['川菜','四川','麻辣','花椒','辣'], price:68, rating:4.8, reason:'正宗成都师傅掌勺，汉源花椒加二荆条辣椒，麻辣鲜香层次丰富，辣度可调，性价比极高。' },
+  { name:'老成都印象', cuisine:'川菜', kw:['川菜','四川','辣','麻辣'], price:82, rating:4.7, reason:'20年老店，水煮鱼现杀现做，夫妻肺片香辣入味，午市人气爆棚，场场满座。' },
+  { name:'巴蜀风情馆', cuisine:'川菜', kw:['川菜','四川','辣','中餐'], price:75, rating:4.6, reason:'干煸牛肉丝和回锅肉是招牌，火候到位，下饭神器，适合不怕辣的食客聚餐。' },
+  { name:'辣府·新川菜', cuisine:'川菜', kw:['川菜','四川','辣','麻辣'], price:95, rating:4.5, reason:'融合新派川菜与传统口味，藤椒鱼和口水鸡让人欲罢不能，环境宽敞适合商务聚餐。' },
+  { name:'蓉城小厨', cuisine:'川菜', kw:['川菜','四川','辣','中餐'], price:58, rating:4.4, reason:'家常风格的川菜小馆，蒜泥白肉和红油抄手量大实惠，上班族午餐的最爱。' },
+  { name:'麻婆婆川菜', cuisine:'川菜', kw:['川菜','四川','辣','麻辣'], price:63, rating:4.7, reason:'主打麻婆豆腐系列，嫩豆腐配自制红油，麻辣烫嘴停不下来，单人食也友好。' },
+  // 湘菜
+  { name:'外婆桥湘菜', cuisine:'湘菜', kw:['湘菜','湖南','辣','剁椒'], price:72, rating:4.7, reason:'剁椒鱼头蒸得鲜嫩多汁，祖传秘方辣酱让你一口难忘，是周边湘菜口碑最佳之一。' },
+  { name:'长沙印象·小龙虾', cuisine:'湘菜', kw:['湘菜','湖南','辣','小龙虾'], price:98, rating:4.6, reason:'口味虾现做现炒，秘制香辣酱汁浓郁，每只虾都入味到根，夏夜聚餐首选。' },
+  { name:'毛家饭店·正宗湘味', cuisine:'湘菜', kw:['湘菜','湖南','辣','中餐'], price:80, rating:4.8, reason:'红烧肉软烂入味皮糯不腻，辣椒炒肉是湖南人认可的标准做法，场场爆满。' },
+  { name:'炊烟时代', cuisine:'湘菜', kw:['湘菜','湖南','辣','家常'], price:55, rating:4.4, reason:'农家小炒味道地道，腊肉炒笋干是必点，价格亲民，常常满座需提前订位。' },
+  { name:'潇湘阁', cuisine:'湘菜', kw:['湘菜','湖南','辣','中餐'], price:88, rating:4.6, reason:'粉蒸肉酥香软绵，干锅牛蛙麻辣鲜香，环境古色古香，适合朋友聚会。' },
+  { name:'湘西土匪鸭', cuisine:'湘菜', kw:['湘菜','湖南','辣'], price:65, rating:4.5, reason:'整鸭卤制再炒，辣得过瘾香得彻底，配农家擂辣椒越嚼越香。' },
+  // 粤菜
+  { name:'粤满楼·港式茶餐厅', cuisine:'粤菜', kw:['粤菜','广东','港式','早茶','点心','茶餐厅'], price:52, rating:4.5, reason:'虾饺皮薄馅鲜每日现蒸，丝袜奶茶锡兰红茶拼配奶香浓郁，50出头吃饱吃好。' },
+  { name:'福临门·正宗粤菜', cuisine:'粤菜', kw:['粤菜','广东','港式'], price:138, rating:4.9, reason:'清蒸石斑鱼鲜嫩无比，白切鸡皮脆肉滑，广东人认证的正宗粤菜，宴请首选。' },
+  { name:'点都德·广式早茶', cuisine:'粤菜', kw:['粤菜','广东','早茶','点心'], price:65, rating:4.7, reason:'网红早茶品牌，肠粉晶莹剔透Q弹顺滑，蛋挞酥皮层次分明，周末需提前预约。' },
+  { name:'利苑·精致粤菜', cuisine:'粤菜', kw:['粤菜','广东','港式'], price:180, rating:4.8, reason:'烧鹅色泽红亮皮脆肉嫩，蜜汁叉烧肥瘦相间，港产美食爱好者心中的神店。' },
+  { name:'莲香楼·百年老铺', cuisine:'粤菜', kw:['粤菜','广东','早茶','点心'], price:58, rating:4.6, reason:'创立百年，马蹄糕、萝卜糕现做现卖，是老广情怀打卡地，回头客极多。' },
+  { name:'顺德人家', cuisine:'粤菜', kw:['粤菜','广东'], price:92, rating:4.7, reason:'顺德菜精髓，桑拿鱼和大良炒鲜奶是传奇级别，食材讲究做法考究值得一去。' },
+  // 日料
+  { name:'铃木寿司·匠心日料', cuisine:'日料', kw:['日料','日本','寿司','刺身','日式'], price:185, rating:4.9, reason:'食材每日从日本空运，主厨15年经验，omakase惊喜感十足，约会聚餐绝佳选择。' },
+  { name:'一兰拉面·正宗博多', cuisine:'日料', kw:['日料','日本','拉面','日式'], price:75, rating:4.7, reason:'豚骨汤底浓醇香滑，独立小隔间专注用餐，辣度和浓度自定义，拉面爱好者朝圣地。' },
+  { name:'居酒屋 Naka', cuisine:'日料', kw:['日料','日本','居酒屋','日式'], price:110, rating:4.6, reason:'烤鸡皮焦香酥脆，清酒种类丰富，下班解压聚餐的绝佳去处，每桌都要预约。' },
+  { name:'丸龟制面', cuisine:'日料', kw:['日料','日本','乌冬','面','日式'], price:45, rating:4.4, reason:'现擀乌冬面劲道Q弹，天妇罗现炸酥脆，人均40出头快速解决午饭性价比之王。' },
+  { name:'雅叙苑·怀石料理', cuisine:'日料', kw:['日料','日本','刺身','日式'], price:380, rating:4.9, reason:'全套怀石料理12道，食材精选时令最佳，主厨大阪工作20年，顶级日料体验。' },
+  { name:'叁陆零烤鱼·日式风', cuisine:'日料', kw:['日料','日本','日式'], price:95, rating:4.5, reason:'日式盐烤鱼文火慢烤，鱼皮焦香鱼肉鲜嫩，搭配味噌汤和漬菜，清淡养胃。' },
+  // 墨西哥菜
+  { name:'La Cantina 墨西哥餐厅', cuisine:'墨西哥菜', kw:['墨西哥','taco','tacos','异国'], price:95, rating:4.6, reason:'玉米饼皮每日现做，手打牛油果酱鲜嫩醇厚，搭配特调玛格丽塔，秒穿越墨西哥街头。' },
+  { name:'Cantina Royale', cuisine:'墨西哥菜', kw:['墨西哥','异国'], price:118, rating:4.7, reason:'精品墨西哥菜，玛格丽塔鸡尾酒种类超多，烤鸡肉卷配自制salsa酱，层次感极佳。' },
+  { name:'Guadalajara 瓜达拉哈拉', cuisine:'墨西哥菜', kw:['墨西哥','异国'], price:135, rating:4.8, reason:'主厨来自瓜达拉哈拉，Enchiladas酱料复杂鲜美，城里墨西哥菜爱好者公认的天花板。' },
+  { name:'El Bodegón Tacos', cuisine:'墨西哥菜', kw:['墨西哥','taco','tacos'], price:85, rating:4.5, reason:'正宗墨西哥街头风味，猪肉塔可酸辣醒胃，Nachos奶酪拉丝诱人，适合闺蜜聚餐。' },
+  { name:'Taqueria El Sol', cuisine:'墨西哥菜', kw:['墨西哥','taco'], price:72, rating:4.5, reason:'平价墨西哥街头小食，墨西哥卷饼份量足，辣度适中，初次尝试墨西哥菜的好选择。' },
+  // 火锅
+  { name:'潮汕老李鱼火锅', cuisine:'火锅', kw:['火锅','涮','潮汕','清汤'], price:128, rating:4.7, reason:'整条鲜鱼熬汤底鲜甜无腥，鱼片现切7秒涮熟，搭配自制沙茶酱，颠覆你的火锅认知。' },
+  { name:'海底捞·极致服务', cuisine:'火锅', kw:['火锅','涮'], price:145, rating:4.7, reason:'服务无可挑剔，等位有小食美甲，锅底可自由搭配，适合家庭聚会和朋友聚餐。' },
+  { name:'蜀大侠重庆火锅', cuisine:'火锅', kw:['火锅','涮','重庆','辣'], price:118, rating:4.8, reason:'正宗重庆牛油锅底麻辣霸道，鸭肠毛肚是必点，老板亲自把关食材，每天排队到凌晨。' },
+  { name:'捞王·锅物料理', cuisine:'火锅', kw:['火锅','涮'], price:132, rating:4.6, reason:'猪肚鸡汤底浓郁养胃，广式清汤风格，食材新鲜，适合怕辣人群和女生聚餐。' },
+  { name:'小龙坎·老成都火锅', cuisine:'火锅', kw:['火锅','涮','辣'], price:105, rating:4.5, reason:'网红老成都火锅，复古装修出片率高，豆花和糍粑是亮点，性价比在同类中较高。' },
+  { name:'围炉·潮式打边炉', cuisine:'火锅', kw:['火锅','涮','潮汕'], price:160, rating:4.9, reason:'潮汕顶级食材打边炉，汕头澄海牛肉现切，手工鱼丸弹牙，潮汕菜爱好者的梦中餐厅。' },
+  // 西餐
+  { name:'意面工坊 Pasta Lab', cuisine:'西餐', kw:['西餐','意大利','意面','披萨','约会'], price:118, rating:4.8, reason:'主厨来自米兰，意面全部现做弹韧有嚼劲，松露黑意面香气浓郁，搭配意大利红酒完美。' },
+  { name:'Jacks & Beer', cuisine:'西餐', kw:['西餐','美式','汉堡','啤酒'], price:88, rating:4.5, reason:'手打牛肉汉堡多汁诱人，配手工薯条酥脆，精酿啤酒种类丰富，球赛之夜首选。' },
+  { name:'Blue Frog·西式餐吧', cuisine:'西餐', kw:['西餐','美式','聚餐'], price:135, rating:4.6, reason:'环境轻松适合朋友聚餐，BBQ猪肋排大分量肉质烂，搭配鸡尾酒气氛欢乐热闹。' },
+  { name:'Shake Shack·纽约汉堡', cuisine:'西餐', kw:['西餐','汉堡','快餐','美式'], price:65, rating:4.6, reason:'ShackBurger双层牛肉芝士汁水充沛，厚shake绵密香甜，快餐里的品质代表。' },
+  { name:'Bistro on the Bund', cuisine:'西餐', kw:['西餐','法餐','约会','精致'], price:280, rating:4.8, reason:'法式鹅肝和龙虾浓汤精致，高端约会和商务宴请的绝佳场所，需提前预订。' },
+  { name:'Gordon Ramsay Bar & Grill', cuisine:'西餐', kw:['西餐','牛排','约会'], price:450, rating:4.9, reason:'米其林背景主厨监制，黑安格斯牛排口感绝佳，是顶级用餐体验首选，需提前1周预约。' },
+  // 烤肉
+  { name:'烧肉研究所', cuisine:'烤肉', kw:['烤肉','烧肉','和牛','聚餐','庆祝'], price:220, rating:4.9, reason:'选用顶级A5和牛，专属服务员代烤确保最佳熟度，厚切牛舌香嫩，庆祝聚餐的不二之选。' },
+  { name:'新村韩国烤肉', cuisine:'烤肉', kw:['烤肉','韩式','韩国','聚餐'], price:145, rating:4.6, reason:'首尔直送调味酱，五花肉腌制入味，搭配泡菜和石锅拌饭，韩国留学生都说正宗。' },
+  { name:'炭火王·本格派炭火烤肉', cuisine:'烤肉', kw:['烤肉','烧肉','聚餐'], price:178, rating:4.7, reason:'炭火明烤口感独特，橡木炭无烟无味，神户牛排和秘制蒜香猪颈肉是招牌。' },
+  { name:'亲爱的·轻奢韩烤', cuisine:'烤肉', kw:['烤肉','韩式','韩国','约会'], price:190, rating:4.7, reason:'粉色系网红装修，雪花黑毛和牛和秘制酱腌小排，少女心爆棚的约会拍照地。' },
+  { name:'大希地·西班牙烤肉', cuisine:'烤肉', kw:['烤肉','聚餐'], price:135, rating:4.5, reason:'西班牙黑毛猪伊比利亚火腿，薄切轻烤自然鲜美，附赠桑格利亚酒，异国风情浓郁。' },
+  // 泰国菜
+  { name:'泰味坊·正宗泰餐', cuisine:'泰国菜', kw:['泰国','泰式','东南亚','冬阴功','咖喱'], price:88, rating:4.7, reason:'主厨来自清迈，香茅和柠檬叶进口自泰国，冬阴功汤酸辣鲜香层次丰富，芒果糯米饭绝了。' },
+  { name:'曼谷阳台', cuisine:'泰国菜', kw:['泰国','泰式','东南亚','咖喱'], price:95, rating:4.6, reason:'泰式绿咖喱浓郁鲜香，烤鸡配椰汁饭是经典组合，装修还原泰国古宅，气氛满分。' },
+  { name:'泰上皇', cuisine:'泰国菜', kw:['泰国','泰式','东南亚'], price:72, rating:4.5, reason:'泰式炒河粉（Pad Thai）现炒香气四溢，泰式奶茶浓甜拉花好看，附近上班族午餐爱来。' },
+  { name:'清迈·地道泰北菜', cuisine:'泰国菜', kw:['泰国','泰式','东南亚'], price:105, rating:4.8, reason:'聚焦泰北风味，清迈咖喱（Khao Soi）是独家招牌，椰奶面条的层次感让食客念念不忘。' },
+  { name:'芭提雅海鲜泰餐', cuisine:'泰国菜', kw:['泰国','泰式','东南亚','海鲜'], price:128, rating:4.6, reason:'鲜虾冬阴功份量充足，泰式炒蛤蜊九层塔香气扑鼻，海鲜新鲜每日到货。' },
+  // 意大利菜
+  { name:'Trattoria Italiana', cuisine:'意大利菜', kw:['意大利','意面','披萨','西餐'], price:145, rating:4.8, reason:'主厨来自博洛尼亚，手工意大利面和炭烤披萨食材直接从意大利进口，风味纯正。' },
+  { name:'Pizza Express', cuisine:'意大利菜', kw:['意大利','披萨','西餐'], price:88, rating:4.4, reason:'薄底披萨脆而不焦，玛格丽特配料新鲜，量大份足，全家出行的轻松用餐选择。' },
+  { name:'Dal Fabbro·精品意餐', cuisine:'意大利菜', kw:['意大利','意面','约会'], price:220, rating:4.9, reason:'松露黑意面和鱼子酱意大利饺是保留菜，葡萄酒单超300种，私密约会晚餐最佳选。' },
+  { name:'万客隆·家庭意餐', cuisine:'意大利菜', kw:['意大利','意面','披萨'], price:98, rating:4.5, reason:'家庭餐厅氛围温馨，芝士焗烤意面分量超级大，价格公道，亲子用餐再合适不过。' },
+  { name:'Saizeriya 萨莉亚', cuisine:'意大利菜', kw:['意大利','意面','披萨','实惠','便宜'], price:35, rating:4.2, reason:'性价比无敌，意面才十几块，焗饭软烂香浓，学生和年轻人的意大利菜启蒙地。' },
+  // 烧烤
+  { name:'炉鱼·炭烤鱼', cuisine:'烧烤', kw:['烧烤','烤鱼','烤串'], price:88, rating:4.6, reason:'现点现烤的炭烤鱼，秘制酱料入味，配豆腐粉丝打底，香辣锅底越煮越好吃。' },
+  { name:'木屋烧烤·室内撸串', cuisine:'烧烤', kw:['烧烤','烤串','聚餐'], price:75, rating:4.5, reason:'室内明火烧烤无需担心天气，羊肉串和脆骨是必点，扎啤冰爽配串香，解压聚餐首选。' },
+  { name:'撸串大排档', cuisine:'烧烤', kw:['烧烤','烤串','夜宵'], price:55, rating:4.3, reason:'露天大排档气氛最接地气，烤猪蹄和烤生蚝是网红款，配冰啤酒再合适不过。' },
+  { name:'土耳其烤肉 Doner', cuisine:'烧烤', kw:['烧烤','异国'], price:48, rating:4.5, reason:'土耳其旋转烤肉刀削入饼，搭配特调酸奶汁和沙拉，快速解决一餐的异域美食。' },
+  { name:'陕北大碗烤肉', cuisine:'烧烤', kw:['烧烤','烤串'], price:65, rating:4.6, reason:'西北风味大串烤肉，孜然辣椒入味，羊腿肉分量超足，豪爽大气适合大口吃肉的你。' },
+  // 快餐
+  { name:'真功夫·中式快餐', cuisine:'快餐', kw:['快餐','实惠','便宜','午餐','划算'], price:30, rating:4.0, reason:'蒸制烹饪锁住营养，排骨饭和滑蛋饭快速上桌，赶时间午饭的稳定选择，不踩雷。' },
+  { name:'老乡鸡·家常快餐', cuisine:'快餐', kw:['快餐','实惠','便宜','午餐','划算'], price:28, rating:4.2, reason:'老乡鸡汤底鲜美，盖饭套餐多样，20多块吃饱吃好，上班族午餐的好伴侣。' },
+  { name:'夹克的虾', cuisine:'快餐', kw:['快餐','实惠','小龙虾'], price:45, rating:4.4, reason:'小龙虾快餐化，点单即做，麻辣口味香辣过瘾，想吃虾又不想等太久的最佳选择。' },
+  { name:'遇见小面·重庆风味', cuisine:'快餐', kw:['快餐','实惠','面','午餐','便宜'], price:25, rating:4.3, reason:'重庆小面麻辣鲜香，猪肝面配菜丰盛，价格20多块起，早餐午餐超高性价比选择。' },
+  { name:'和府捞面', cuisine:'面馆', kw:['快餐','面','午餐','实惠'], price:55, rating:4.5, reason:'石锅猪骨浓汤面汤底浓醇，牛腩和虾滑是招牌，书房风格装修高颜值，午餐悠闲首选。' },
+];
+
+// ─── 菜系识别 ─────────────────────────────────────────────────────────────────
+const CUISINE_MAP = [
+  { kws:['川菜','四川','麻辣','花椒','担担','水煮','辣椒面'], kw:'川菜' },
+  { kws:['湘菜','湖南','剁椒','小龙虾','龙虾','湘'], kw:'湘菜' },
+  { kws:['粤菜','广东','港式','早茶','点心','茶餐厅','烧腊'], kw:'粤菜' },
+  { kws:['日料','日本','寿司','刺身','拉面','乌冬','居酒屋','日式'], kw:'日本料理' },
+  { kws:['墨西哥','taco','tacos'], kw:'墨西哥菜' },
+  { kws:['火锅','涮锅','涮','毛肚','鸳鸯锅','打边炉'], kw:'火锅' },
+  { kws:['西餐','牛排','汉堡','法餐','美式'], kw:'西餐' },
+  { kws:['烤肉','烧肉','和牛','韩国烤肉','韩式','韩国'], kw:'韩式烤肉' },
+  { kws:['泰国','泰式','冬阴功','泰餐','东南亚'], kw:'泰国菜' },
+  { kws:['意大利','意面','pasta','意大利面'], kw:'意大利餐厅' },
+  { kws:['烧烤','烤串','撸串','夜宵烤'], kw:'烧烤' },
+  { kws:['快餐','实惠','便宜','划算'], kw:'快餐' },
+  { kws:['面','拉面','面条','面馆','汤面'], kw:'面馆' },
+];
+
+function detectCuisine(query) {
+  const q = query.toLowerCase();
+  for (const { kws, kw } of CUISINE_MAP) {
+    if (kws.some(k => q.includes(k))) return kw;
+  }
+  // 去掉口语词，剩余词作为搜索词
+  const cleaned = query
+    .replace(/我想吃|附近|有什么|好吃的|推荐|随便|来点|在哪|哪里有|一下|美食|点什么/g, '')
+    .trim();
+  return cleaned; // 空字符串 = 不限类型，高德返回所有餐厅
+}
+
+// ─── JSONP 请求（高德 Web服务 API 支持 callback 参数）────────────────────────
+function amapJsonp(path, params) {
+  return new Promise((resolve, reject) => {
+    // 唯一回调名，防止并发冲突
+    const cbName = '_amap_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const allParams = { ...params, key: AMAP_KEY, output: 'JSON', callback: cbName };
+    const qs = Object.entries(allParams)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+
+    const script = document.createElement('script');
+    script.src = `https://restapi.amap.com${path}?${qs}`;
+
+    const timer = setTimeout(() => { cleanup(); reject(new Error('请求超时')); }, 10000);
+    window[cbName] = data => { cleanup(); resolve(data); };
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      script.parentNode?.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('网络错误，无法连接高德地图')); };
+    document.head.appendChild(script);
+  });
+}
+
+// ─── 高德 POI 周边搜索 ────────────────────────────────────────────────────────
+async function fetchFromAmap(keyword) {
+  const params = {
+    location:   `${userLng},${userLat}`,  // 高德格式：经度在前
+    types:      '050000',                  // 餐饮服务大类
+    radius:     '3000',
+    offset:     '25',
+    page:       '1',
+    extensions: 'all',   // 返回 biz_ext（含大众点评评分和人均消费）
+    sortrule:   'weight', // 综合排序（相关度 + 距离）
+  };
+  if (keyword) params.keywords = keyword;
+
+  const data = await amapJsonp('/v3/place/around', params);
+
+  if (data.status !== '1') throw new Error(`高德API: ${data.info}`);
+  const pois = data.pois || [];
+  if (!pois.length) throw new Error('附近未找到相关餐厅，请换个关键词试试');
+
+  // 有评分的优先展示，然后补无评分的，最多取5家
+  const withRating    = pois.filter(p => hasVal(p.biz_ext?.rating));
+  const withoutRating = pois.filter(p => !hasVal(p.biz_ext?.rating));
+  const top5 = [
+    ...withRating.sort((a, b) => parseFloat(b.biz_ext.rating) - parseFloat(a.biz_ext.rating)),
+    ...withoutRating,
+  ].slice(0, 5);
+
+  return top5.map(mapPOI);
+}
+
+function hasVal(v) {
+  return v != null && v !== '' && v !== '[]';
+}
+
+// 将高德 POI 对象转为卡片数据
+function mapPOI(p) {
+  const ext      = p.biz_ext || {};
+  const distM    = parseInt(p.distance || 0, 10);
+  const rating   = hasVal(ext.rating) ? parseFloat(ext.rating) : null;
+  const price    = hasVal(ext.cost)   ? parseInt(ext.cost, 10) : null;
+  // 高德 type 格式："餐饮服务;中餐厅;川菜"，取最具体的最后一段
+  const cuisine  = (p.type || '').split(';').filter(Boolean).pop() || '餐厅';
+
+  const r = {
+    name:       p.name,
+    address:    Array.isArray(p.address) ? p.address.join('') : (p.address || ''),
+    cuisine,
+    price,
+    rating:     rating != null ? rating.toFixed(1) : null,
+    dist:       fmtDist(distM),
+    distM,
+    tel:        hasVal(p.tel) ? p.tel : '',
+    openTime:   hasVal(ext.open_time) ? ext.open_time : '',
+    source:     'real',
+  };
+  r.reason = genReason(r);
+  return r;
+}
+
+function fmtDist(m) {
+  if (!m || isNaN(m)) return '距离未知';
+  return m < 1000 ? `${m} 米` : `${(m / 1000).toFixed(1)} 公里`;
+}
+
+// 根据评分/距离/价格自动生成一句话推荐理由
+function genReason({ cuisine, rating, price, distM }) {
+  const parts = [];
+
+  if (rating != null) {
+    const r = parseFloat(rating);
+    if      (r >= 4.8) parts.push(`大众点评评分 ${rating} 分，是周边${cuisine}口碑天花板`);
+    else if (r >= 4.5) parts.push(`评分 ${rating} 分，好评率极高`);
+    else if (r >= 4.2) parts.push(`评分 ${rating} 分，口碑稳定`);
+    else if (r >= 3.8) parts.push(`评分 ${rating} 分`);
+    else               parts.push(`附近${cuisine}`);
+  }
+
+  if (distM > 0) {
+    if      (distM < 200)  parts.push('就在附近，步行2分钟即到');
+    else if (distM < 500)  parts.push('步行约5分钟，位置极便利');
+    else if (distM < 1000) parts.push('步行约10分钟可达');
+    else if (distM < 2000) parts.push('骑车约10分钟');
+    else                   parts.push('开车约5分钟');
+  }
+
+  if (price != null) {
+    if      (price <= 30)  parts.push(`人均仅 ¥${price}，超高性价比`);
+    else if (price <= 60)  parts.push(`人均 ¥${price}，实惠亲民`);
+    else if (price <= 100) parts.push(`人均 ¥${price}，性价比不错`);
+    else if (price <= 200) parts.push(`人均 ¥${price}，品质用餐`);
+    else                   parts.push(`人均 ¥${price}，适合特殊场合`);
+  }
+
+  return parts.length ? parts.slice(0, 2).join('，') + '。'
+                      : `附近的${cuisine}，值得一试。`;
+}
+
+// ─── 模拟数据降级 ─────────────────────────────────────────────────────────────
+function fallbackSearch(keyword) {
+  const q = (keyword || '').toLowerCase();
+  let pool = DB.filter(r => r.kw.some(k => q.includes(k) || k.includes(q)));
+  if (pool.length < 3) pool = shuffle([...DB]).slice(0, 5);
+  else pool = shuffle(pool).slice(0, Math.min(5, pool.length));
+
+  return pool.map(r => {
+    const distM = Math.floor(Math.random() * 2800 + 120);
+    return {
+      name:    r.name,
+      cuisine: r.cuisine,
+      price:   r.price,
+      rating:  r.rating.toFixed(1),
+      dist:    fmtDist(distM),
+      distM,
+      address: '',
+      tel:     '',
+      reason:  r.reason,
+      source:  'mock',
+    };
+  });
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ─── AI 摘要文案 ──────────────────────────────────────────────────────────────
+function genSummary(q, list, keyword, isReal) {
+  const n   = list.length;
+  const loc = (locLabel && locLabel !== '定位中') ? locLabel : '你的位置';
+  const src = isReal
+    ? '高德地图实时数据（含大众点评评分）'
+    : '内置推荐数据（高德API暂不可用）';
+  const kTag = keyword ? `"${keyword}"` : `"${q}"`;
+  const tpls = [
+    `好的！基于 ${loc} 的 ${src}，找到 ${n} 家 ${kTag} 相关餐厅，按口碑和距离综合排序，快来看看吧！`,
+    `明白！在 ${loc} 附近，从 ${src} 精选了 ${n} 家 ${kTag}，评分、距离、人均都帮你考虑好了，放心去吃！`,
+  ];
+  return tpls[Math.floor(Math.random() * tpls.length)];
+}
+
+// ─── 定位 ─────────────────────────────────────────────────────────────────────
+function askLocation() {
+  document.getElementById('locBanner').classList.add('hidden');
+  setLocBadge('定位中…', false);
+  if (!navigator.geolocation) { setDefaultLoc(); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLat  = pos.coords.latitude;
+      userLng  = pos.coords.longitude;
+      // 注：浏览器返回 WGS-84，高德使用 GCJ-02，误差约100-300米，周边搜索影响可忽略
+      locLabel = `${userLat.toFixed(2)}°N ${userLng.toFixed(2)}°E`;
+      setLocBadge('已定位', true);
+    },
+    () => setDefaultLoc(),
+    { timeout: 8000 }
+  );
+}
+
+function setDefaultLoc() {
+  userLat  = 31.2304;   // 上海陆家嘴
+  userLng  = 121.4737;
+  locLabel = '上海（模拟位置）';
+  setLocBadge('模拟定位', true);
+}
+
+function setLocBadge(text, ok) {
+  document.getElementById('locText').textContent = text;
+  document.getElementById('locBadge').className  = ok ? 'ok' : '';
+}
+
+window.addEventListener('load', () => {
+  initAuth();
+  setTimeout(askLocation, 500);
+});
+
+// ─── 搜索主流程 ───────────────────────────────────────────────────────────────
+function onKey(e)   { if (e.key === 'Enter') doSearch(); }
+function quick(txt) { document.getElementById('queryInput').value = txt; doSearch(); }
+
+function goHome() {
+  document.getElementById('queryInput').value = '';
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('aiBox').classList.remove('show');
+  document.getElementById('welcome').style.display = '';
+  document.getElementById('homeBtn').style.display = 'none';
+  searching = false;
+}
+
+async function doSearch() {
+  if (searching) return;
+  const q = document.getElementById('queryInput').value.trim();
+  if (!q) return;
+
+  searching = true;
+  showThinking();
+
+  const keyword = detectCuisine(q);
+  let list, isReal = false;
+
+  try {
+    // 确保有坐标（用户可能还没定位完）
+    if (!userLat) setDefaultLoc();
+    list   = await fetchFromAmap(keyword);
+    isReal = true;
+  } catch (err) {
+    console.warn('[高德API 降级]', err.message);
+    list = fallbackSearch(keyword);
+    // 降级时补足模拟延迟，保持体验一致
+    await sleep(Math.max(0, 1200 - 0));
+  }
+
+  const summary = genSummary(q, list, keyword, isReal);
+  await typeText(summary);
+  await sleep(250);
+  showCards(list);
+  searching = false;
+}
+
+// ─── UI 函数 ──────────────────────────────────────────────────────────────────
+function showThinking() {
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('results').classList.remove('show');
+  const el = document.getElementById('aiText');
+  el.style.display = 'none';
+  el.textContent   = '';
+  document.getElementById('thinkDots').style.display = 'flex';
+  document.getElementById('aiBox').classList.add('show');
+}
+
+async function typeText(text) {
+  document.getElementById('thinkDots').style.display = 'none';
+  const el = document.getElementById('aiText');
+  el.style.display = 'block';
+  el.textContent   = '';
+  for (let i = 0; i < text.length; i++) {
+    el.textContent += text[i];
+    if (i % 3 === 0) await sleep(14);
+  }
+}
+
+function showCards(list) {
+  document.getElementById('resultsBadge').textContent = `${list.length} 家好店`;
+  const wrap = document.getElementById('cardsWrap');
+  wrap.innerHTML = '';
+  list.forEach((r, i) => wrap.appendChild(makeCard(r, i + 1)));
+  document.getElementById('results').classList.add('show');
+  const btn = document.getElementById('homeBtn');
+  btn.style.display = 'flex';
+}
+
+function makeCard(r, rank) {
+  const div       = document.createElement('div');
+  div.className   = 'rcard';
+
+  const score     = parseFloat(r.rating);
+  const starStr   = isNaN(score) ? '—' : stars(score);
+  const ratingStr = r.rating ?? '暂无';
+  const priceStr  = r.price  != null ? `¥${r.price}` : '暂无';
+
+  // 来源标记：区分真实数据和模拟数据
+  const srcTag = r.source === 'real'
+    ? `<span class="src-tag real">高德实时</span>`
+    : `<span class="src-tag mock">模拟数据</span>`;
+
+  // 地址行（真实数据才有）
+  const addrHtml = r.address
+    ? `<div class="card-info">📍 ${r.address}${r.tel ? '　📞 ' + r.tel : ''}</div>`
+    : '';
+
+  div.innerHTML = `
+    <div class="rank-num">${rank}</div>
+    <div class="card-body">
+      <div class="card-top">
+        <div class="card-name">${r.name} ${srcTag}</div>
+        <div class="card-rating">
+          <span class="card-stars">${starStr}</span>
+          <span class="card-score">${ratingStr}</span>
+        </div>
+      </div>
+      <div class="card-tags">
+        <span class="tag cuisine">${r.cuisine}</span>
+        <span class="tag price">人均 ${priceStr}</span>
+        <span class="tag distance">🛵 ${r.dist}</span>
+      </div>
+      <div class="card-reason">${r.reason}</div>
+      ${addrHtml}
+    </div>`;
+  return div;
+}
+
+function stars(n) {
+  let s = '';
+  for (let i = 1; i <= 5; i++) {
+    s += n >= i ? '★' : n >= i - 0.5 ? '⭑' : '☆';
+  }
+  return s;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
